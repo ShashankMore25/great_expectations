@@ -17,6 +17,7 @@ develop
   - no batches are passed
   - batches are of the the wrong type
   - no matching validation operator is found in the project
+* DataContext.create() adds an additional directory: `checkpoints`
 
 0.10.4
 -----------------
