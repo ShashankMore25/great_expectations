@@ -591,6 +591,15 @@ List the checkpoints found in the project.
     Found 1 checkpoint.
     my_checkpoint
 
+``great_expectations checkpoint run <CHECKPOINT>``
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Run an existing checkpoint.
+
+.. code-block:: bash
+
+    $ great_expectations checkpoint run my_checkpoint
+    Validation Failed!
+
 ``great_expectations checkpoint new``
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

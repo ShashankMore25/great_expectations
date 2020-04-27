@@ -3,21 +3,25 @@ import sys
 
 import click
 
+from great_expectations import DataContext
+from great_expectations.cli import toolkit
 from great_expectations.cli.datasource import (
     get_batch_kwargs,
     select_datasource,
 )
+from great_expectations.cli.mark import Mark as mark
 from great_expectations.cli.util import (
     cli_message,
     cli_message_list,
     load_data_context_with_error_handling,
     load_expectation_suite,
 )
-from great_expectations.cli.mark import Mark as mark
-from great_expectations.core.usage_statistics.usage_statistics import (
-    send_usage_message,
-)
+from great_expectations.core.usage_statistics.usage_statistics import send_usage_message
 from great_expectations.data_context.util import file_relative_path
+from great_expectations.exceptions import (
+    CheckpointError,
+    CheckpointNotFoundError,
+)
 from great_expectations.util import lint_code
 
 
@@ -40,10 +44,18 @@ def checkpoint():
 @mark.cli_as_experimental
 def checkpoint_new(suite, checkpoint_filename, directory, datasource=None):
     """Create a new checkpoint file for easy deployments. (Experimental)"""
-    _checkpoint_new(suite, checkpoint_filename, directory, usage_event="cli.checkpoint.new", datasource=datasource)
+    _checkpoint_new(
+        suite,
+        checkpoint_filename,
+        directory,
+        usage_event="cli.checkpoint.new",
+        datasource=datasource,
+    )
 
 
-def _checkpoint_new(suite, checkpoint_filename, directory, usage_event, datasource=None):
+def _checkpoint_new(
+    suite, checkpoint_filename, directory, usage_event, datasource=None
+):
     context = load_data_context_with_error_handling(directory)
     try:
         _validate_checkpoint_filename(checkpoint_filename)
@@ -56,22 +68,14 @@ def _checkpoint_new(suite, checkpoint_filename, directory, usage_event, datasour
             batch_kwargs, context_directory, suite, checkpoint_filename
         )
         cli_message(
-        f"""\
+            f"""\
 <green>A new checkpoint has been generated!</green>
 To run this checkpoint, run: <green>python {checkpoint_filename}</green>
 You can edit this script or place this code snippet in your pipeline."""
         )
-        send_usage_message(
-            data_context=context,
-            event=usage_event,
-            success=True
-        )
+        send_usage_message(context, event=usage_event, success=True)
     except Exception as e:
-        send_usage_message(
-            data_context=context,
-            event=usage_event,
-            success=False
-        )
+        send_usage_message(context, event=usage_event, success=False)
         raise e
 
 
@@ -98,6 +102,72 @@ def checkpoint_list(directory):
     cli_message_list(checkpoints, list_intro_string=message)
 
 
+@checkpoint.command(name="run")
+@click.argument("checkpoint")
+@click.option(
+    "--directory",
+    "-d",
+    default=None,
+    help="The project's great_expectations directory.",
+)
+@mark.cli_as_experimental
+def checkpoint_run(checkpoint, directory):
+    """Run a checkpoint. (Experimental)"""
+    context = load_data_context_with_error_handling(directory)
+    usage_event = "cli.checkpoint.list"
+
+    checkpoint_config = {}
+    try:
+        checkpoint_config = context.get_checkpoint(checkpoint)
+    except CheckpointNotFoundError as e:
+        _exit_with_failure_message(
+            context,
+            usage_event,
+            f"""\
+<red>Could not find checkpoint `{checkpoint}`.</red> Try running:
+  - `<green>great_expectations checkpoint list</green>` to verify your checkpoint exists
+  - `<green>great_expectations checkpoint new</green>` to configure a new checkpoint""",
+        )
+    except CheckpointError as e:
+        _exit_with_failure_message(context, usage_event, f"<red>{e}</red>")
+
+    batches_to_validate = []
+    for batch in checkpoint_config["batches"]:
+        for suite_name in batch["expectation_suite_names"]:
+            # TODO probably try catch around this.
+            suite = load_expectation_suite(context, suite_name)
+            batch_kwargs = batch["batch_kwargs"]
+            # TODO probably try catch around this, though I'm not sure what the
+            #  behavior should be
+            batch = toolkit.load_batch(context, suite, batch_kwargs)
+            batches_to_validate.append(batch)
+
+    validation_operator_name = checkpoint_config["validation_operator_name"]
+
+    results = context.run_validation_operator(
+        validation_operator_name,
+        assets_to_validate=batches_to_validate,
+        # TODO what about evaluation parameters?
+    )
+
+    if not results["success"]:
+        cli_message("Validation Failed!")
+        send_usage_message(context, event=usage_event, success=True)
+        sys.exit(1)
+
+    cli_message("Validation Succeeded!")
+    send_usage_message(context, event=usage_event, success=True)
+    sys.exit(0)
+
+
+def _exit_with_failure_message(
+    context: DataContext, usage_event: str, message: str
+) -> None:
+    cli_message(message)
+    send_usage_message(context, event=usage_event, success=False)
+    sys.exit(1)
+
+
 def _validate_checkpoint_filename(checkpoint_filename):
     if not checkpoint_filename.endswith(".py"):
         cli_message(
@@ -120,11 +190,18 @@ def _load_template():
     return template
 
 
-def _write_tap_file_to_disk(batch_kwargs, context_directory, suite, checkpoint_filename):
-    tap_file_path = os.path.abspath(os.path.join(context_directory, "..", checkpoint_filename))
+def _write_tap_file_to_disk(
+    batch_kwargs, context_directory, suite, checkpoint_filename
+):
+    tap_file_path = os.path.abspath(
+        os.path.join(context_directory, "..", checkpoint_filename)
+    )
 
     template = _load_template().format(
-        checkpoint_filename, context_directory, suite.expectation_suite_name, batch_kwargs
+        checkpoint_filename,
+        context_directory,
+        suite.expectation_suite_name,
+        batch_kwargs,
     )
     linted_code = lint_code(template)
     with open(tap_file_path, "w") as f:
