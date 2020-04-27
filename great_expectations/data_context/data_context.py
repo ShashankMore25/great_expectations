@@ -1739,6 +1739,17 @@ class DataContext(BaseDataContext):
             # Just to be explicit about what we intended to catch
             raise
 
+    def list_checkpoints(self):
+        """List checkpoints. (Experimental)"""
+        # TODO mark experimental
+        files = self._list_ymls_in_checkpoints_directory()
+        return [os.path.basename(f).rstrip(".yml") for f in files]
+
+    def _list_ymls_in_checkpoints_directory(self):
+        checkpoints_dir = os.path.join(self.root_directory, self.CHECKPOINTS_DIR)
+        files = glob.glob(os.path.join(checkpoints_dir, "*.yml"), recursive=False)
+        return files
+
     def _save_project_config(self):
         """Save the current project to disk."""
         logger.debug("Starting DataContext._save_project_config")

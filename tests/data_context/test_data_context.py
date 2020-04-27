@@ -1166,3 +1166,41 @@ def test_list_validation_operators_data_context_with_none_returns_empty_list(tit
 
 def test_list_validation_operators_data_context_with_one(titanic_data_context):
     assert titanic_data_context.list_validation_operator_names() == ["action_list_operator"]
+
+
+def test_list_checkpoints_on_empty_context_returns_empty_list(empty_data_context):
+    assert empty_data_context.list_checkpoints() == []
+
+
+def test_list_checkpoints_on_context_with_checkpoint(
+        empty_context_with_checkpoint):
+    context = empty_context_with_checkpoint
+    assert context.list_checkpoints() == ["my_checkpoint"]
+
+
+def test_list_checkpoints_on_context_with_twwo_checkpoints(
+        empty_context_with_checkpoint):
+    context = empty_context_with_checkpoint
+    checkpoints_file = os.path.join(
+        context.root_directory, context.CHECKPOINTS_DIR, "my_checkpoint.yml"
+    )
+    shutil.copy(
+        checkpoints_file, os.path.join(os.path.dirname(checkpoints_file), "another.yml")
+    )
+    assert set(context.list_checkpoints()) == {"another", "my_checkpoint"}
+
+
+def test_list_checkpoints_on_context_with_checkpoint_and_other_files_in_checkpoints_dir(
+        empty_context_with_checkpoint,
+):
+    context = empty_context_with_checkpoint
+
+    for extension in [".json", ".txt", "", ".py"]:
+        path = os.path.join(
+            context.root_directory, context.CHECKPOINTS_DIR, f"foo{extension}"
+        )
+        with open(path, "w") as f:
+            f.write("foo: bar")
+        assert os.path.isfile(path)
+
+    assert context.list_checkpoints() == ["my_checkpoint"]
