@@ -581,6 +581,16 @@ great_expectations checkpoint
 All command line operations for working with checkpoints are here.
 A checkpoint is an executable python file that runs validations that you can create to aid deployment of validations.
 
+``great_expectations checkpoint list``
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+List the checkpoints found in the project.
+
+.. code-block:: bash
+
+    $ great_expectations checkpoint list
+    Found 1 checkpoint.
+    my_checkpoint
+
 ``great_expectations checkpoint new``
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -589,7 +599,7 @@ This is the name of a python file that this command will write to.
 
 
 .. note::
-    Taps are a beta feature to speed up deployment.
+    Checkpoints are an experimental feature to speed up deployment.
     Please
     `open a new issue <https://github.com/great-expectations/great_expectations/issues/new>`__
     if you discover a use case that does not yet work

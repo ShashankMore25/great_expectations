@@ -19,6 +19,7 @@ develop
   - no matching validation operator is found in the project
 * DataContext.create() adds an additional directory: `checkpoints`
 * DataContext.list_checkpoints() returns a list of checkpoint names found in the project
+* new cli command: checkpoint list
 
 
 0.10.4

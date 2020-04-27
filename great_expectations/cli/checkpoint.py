@@ -9,6 +9,7 @@ from great_expectations.cli.datasource import (
 )
 from great_expectations.cli.util import (
     cli_message,
+    cli_message_list,
     load_data_context_with_error_handling,
     load_expectation_suite,
 )
@@ -74,12 +75,35 @@ You can edit this script or place this code snippet in your pipeline."""
         raise e
 
 
+@checkpoint.command(name="list")
+@click.option(
+    "--directory",
+    "-d",
+    default=None,
+    help="The project's great_expectations directory.",
+)
+@mark.cli_as_experimental
+def checkpoint_list(directory):
+    """Run a checkpoint. (Experimental)"""
+    context = load_data_context_with_error_handling(directory)
+
+    checkpoints = context.list_checkpoints()
+    if not checkpoints:
+        cli_message("No checkpoints found.")
+        sys.exit(0)
+
+    number_found = len(checkpoints)
+    plural = "s" if number_found > 1 else ""
+    message = f"Found {number_found} checkpoint{plural}."
+    cli_message_list(checkpoints, list_intro_string=message)
+
+
 def _validate_checkpoint_filename(checkpoint_filename):
     if not checkpoint_filename.endswith(".py"):
         cli_message(
             "<red>Tap filename must end in .py. Please correct and re-run</red>"
         )
-        exit(1)
+        sys.exit(1)
 
 
 def _get_datasource(context, datasource):
