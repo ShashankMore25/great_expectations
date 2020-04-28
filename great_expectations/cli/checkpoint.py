@@ -21,6 +21,7 @@ from great_expectations.data_context.util import file_relative_path
 from great_expectations.exceptions import (
     CheckpointError,
     CheckpointNotFoundError,
+    DataContextError,
 )
 from great_expectations.util import lint_code
 
@@ -134,12 +135,14 @@ def checkpoint_run(checkpoint, directory):
     batches_to_validate = []
     for batch in checkpoint_config["batches"]:
         for suite_name in batch["expectation_suite_names"]:
-            # TODO probably try catch around this.
             suite = load_expectation_suite(context, suite_name)
             batch_kwargs = batch["batch_kwargs"]
-            # TODO probably try catch around this, though I'm not sure what the
-            #  behavior should be
-            batch = toolkit.load_batch(context, suite, batch_kwargs)
+
+            # TODO maybe move into toolkit utility
+            try:
+                batch = toolkit.load_batch(context, suite, batch_kwargs)
+            except DataContextError as e:
+                _exit_with_failure_message(f"<red>{e}</red>")
             batches_to_validate.append(batch)
 
     validation_operator_name = checkpoint_config["validation_operator_name"]
@@ -147,14 +150,17 @@ def checkpoint_run(checkpoint, directory):
     results = context.run_validation_operator(
         validation_operator_name,
         assets_to_validate=batches_to_validate,
-        # TODO what about evaluation parameters?
+        # TODO prepare for new RunID - checkpoint name and timestamp
+        # run_id=RunID(checkpoint)
     )
 
     if not results["success"]:
+        # TODO maybe more verbose output (n of n passed)
         cli_message("Validation Failed!")
         send_usage_message(context, event=usage_event, success=True)
         sys.exit(1)
 
+    # TODO maybe more verbose output (n of n passed)
     cli_message("Validation Succeeded!")
     send_usage_message(context, event=usage_event, success=True)
     sys.exit(0)
